@@ -1,0 +1,65 @@
+module Transciver (
+
+    input  wire       clk,
+    input  wire       rst,
+    input  wire [7:0] data,
+    input  wire       en,
+    output reg        tout,
+    output reg        bc
+    );//declaring clock,reset,data,enable pin,tx output,Busy pin
+    
+localparam IDLE  = 3'd0;
+localparam START = 3'd1;
+localparam DATA  = 3'd2;
+localparam STOP  = 3'd3;//declaring the states in this communication
+
+reg [2:0] state;//declaring size for the state
+reg [7:0] data_str;//shift register for storing temprorilly
+reg [2:0] bitc;//counting how much bits have been transmitted
+
+
+always @(posedge clk or posedge rst)begin
+    if(rst)begin//reset is high machine should be in idele state
+        state <= IDLE;//idele state is declared in rst is high 
+        tout <= 1'b1;//transmiter output is 1
+        bc <= 1'b0;// transmitter is free 
+        data_str <= 8'b0;//register is made to nil
+        bitc <= 3'b0;// bit count also made to nil
+        end
+    else begin 
+        if(en)begin// if enabled states starts to change
+            case(state)
+                IDLE: begin//first state
+                      data_str <= data;//here we are moving the first value to temprory reg
+                      state <= START;//making the next state to START transmitting
+                      bc <= 1'b1;//not in work it is in high
+                      end
+                    
+                START:begin//starts to transmitt data 
+                      tout <= 1'b0;//begis transmitting
+                      state <= DATA;//declaring next state to DATA
+                      bitc <= 3'b0;//intantiating bit counter
+                       end
+                DATA:begin//transmitting the data
+                      tout <= data_str[0];//first index value moving to transmitters output
+                      data_str <= data_str >> 1;//moving the value to temprory register
+                      if(bitc == 7)//coditioning whether the transmission is completed or not
+                         state <= STOP;//if completed move to next state where transmission stops
+                      else
+                         bitc <= bitc+1;//else increment bit count and transfer the  data
+                      end
+
+                STOP:begin//the state where the transmission stops
+                      tout <= 1'b1;//returning the output of transciver to 1
+                      state <= IDLE;//moving the state to IDLE
+                      bc <= 1'b0;//making the busy pin 0 so the transmission is not happenning
+                      end
+
+
+               default: state<=IDLE;//default is enable(en) is not active state will be in IDlE
+        endcase
+    end
+end
+end
+
+endmodule
