@@ -1,0 +1,57 @@
+module tb_uart;
+
+    // Testbench signals
+    reg clk;
+    reg rst;
+    reg en;
+    reg [7:0] data;
+    wire tout;
+    wire bc;
+    wire [7:0] rxout;
+    wire busy;
+
+    // Instantiate Transmitter
+     Transciver t1 (
+        .clk(clk),
+        .rst(rst),
+        .data(data),
+        .en(en),
+        .tout(tout),
+        .bc(bc)
+    );
+
+    // Instantiate Receiver
+    receiver  #(.clk_per_bit(16))r1(
+        .tout(tout),
+        .clk(clk),
+        .rst(rst),
+        .en(en),
+        .rxout(rxout),
+        .busy(busy)
+    );
+
+    // Clock generation: 10ns period
+    always #5 clk = ~clk;
+
+    // Stimulus
+    initial begin
+        // Initialize
+        clk = 0;
+        rst = 1;
+        en  = 0;
+        data = 8'b00000000;
+
+        // Reset pulse
+        #20 rst = 0;data = 8'b10011010; // test pattern
+        en = 1;
+        #100 en = 0;     
+        $finish;
+    end
+
+    // Monitor outputs
+    initial begin
+        $monitor("Time=%0t | Data=%h | TX_busy=%b | RX_busy=%b | tout=%b | RXout=%h",
+                  $time, data, bc, busy, tout, rxout);
+    end
+
+endmodule
