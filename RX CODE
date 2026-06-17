@@ -1,0 +1,77 @@
+module receiver #(parameter clk_per_bit = 16)(
+input wire tout,
+input wire clk,
+input wire rst,
+input wire en,
+output reg [7:0]rxout,
+output reg busy);// declaring the required input and outputs
+
+reg [7:0]shift;//shift register for storing temprorily
+reg [2:0]state;// register for fsm
+reg [3:0]bit_counter;//counting how much bit have been recived
+reg [$clog2(clk_per_bit)-1:0] clk_count;// declaring the size of baud rate counter 
+
+localparam IDLE  = 3'd0;//fsm states
+localparam START = 3'd1;//fsm states
+localparam DATA  = 3'd2;//fsm states
+localparam STOP  = 3'd3;//fsm states
+
+always @(posedge clk or posedge rst)begin
+   if(rst)begin
+     rxout <= 8'b0;//@reset the reciever's output will be 0
+     state <= IDLE;//state will be in IDLE
+     shift <= 8'b0;//the register used will be to 0
+     bit_counter <= 3'b0;//counter will be also 0
+     clk_count   <= 0;
+     busy        <= 1'b0;
+     end
+   else begin
+        case (state)
+                   IDLE: begin
+                       busy <= 1'b0;
+                       clk_count <= 0;
+                       if (en && tout == 1'b0) begin // detect start bit
+                           state       <= START;
+                           bit_counter <= 0;
+                           busy        <= 1'b1;
+                       end
+                   end
+            START: begin
+                 if (clk_count == (clk_per_bit/2)) begin//to start reciving it should wait for half of the time period if it exceeds reciving is true
+                    if(tout == 1'b0)begin
+                       state <= DATA;//move the state to DATA
+                       clk_count <= 0;
+                    end else begin
+                      state <= IDLE;//else it is a false trriger and so move to IDLE state
+                end 
+                end else
+                    clk_count <= clk_count +1;//else then increment the counter
+                 end
+            DATA: begin
+               if (clk_count == clk_per_bit-1) begin//if the time period of the clock is same of clk_per_bit then 
+                    shift <= {tout, shift[7:1]}; //this shifts the shift register of by right shift 
+                    clk_count <= 0;
+                    if (bit_counter == 3'b111)//when counter hits 7 move the next state to STOP 
+                       state <= STOP;
+                    else
+                       bit_counter <= bit_counter + 1;//else increment the counter
+               end else
+                   clk_count <= clk_count + 1;
+                   end
+            STOP: begin
+                if (clk_count == clk_per_bit-1) begin
+                     if (tout == 1'b1) begin//when tout which is input is high then the transmitter or reciever input has been completed
+                         rxout <= shift; //moving the stored value to the output 
+                         end
+                    state     <= IDLE;//moving the state to IDLE 
+                    busy      <= 1'b0;//making Busy pin as 0
+                    clk_count <= 0;
+                 end else
+                     clk_count <= clk_count + 1;
+                            end
+         default:  state <= IDLE;
+       endcase             
+                
+       end
+     end
+endmodule
